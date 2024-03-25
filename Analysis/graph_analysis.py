@@ -7,46 +7,45 @@ from emoatlas.valence import english as english_valence
 
 
 class Graph_Analysis:
-    """Helper class to calculate network properties of a formamentis network. It heavily relies on the networkx library. For now, this is okay. But the goal is to replace these functions with own implementations. 
-    Look out for naming conflicts as I use 'round'. Feel free to contribute by adding, verifying and improving the attribute calculating-functions which are the heart of this class."""
+    """Helper class to produce network properties of a formamentis network for english language. Relies on the networkx library. Uses "en_core_web_lg" as parsing model. Look out for naming conflicts as I use "round"."""
+    
+    # Class object
     emos = emoatlas.EmoScores(language='english', spacy_model='en_core_web_lg')
 
     def __init__(self, text, distance, **kwargs):
-        # Class object
         self.fmn = Graph_Analysis.emos.formamentis_network(
             text=text, **kwargs, max_distance=distance)
+        self.distance = distance
         self.text = text
         self.nodes = self.fmn.vertices
         self.edges = self.fmn.edges
         self.graph = nx.Graph(self.edges)
-        # self.lexicon = lexicon needed for the emotional valence
-        # Attributes for prediction
-        self.lcc_ratio = None
-        self.num_comp = None
+        # Network attributes
+        self.ratio_largest_connected_component = None
+        self.number_components = None
         self.mean_deg = None
         self.min_deg = None
         self.max_deg = None
-        self.mean_deg_ast = None
-        self.mean_clust_coef = None
-        self.alg_con = None
-        self.mean_close_cent = None
-        self.weight_close_cent = None
-        self.max_close_cent = None
-        self.num_bet_nodes = None
-        self.slc = None
+        self.mean_degree_assortativity = None
+        self.mean_cluster_coefficient = None
+        self.algrebaric_connectivity = None
+        self.mean_closeness_centrality = None
+        self.weighted_closeness_centrality = None
+        self.max_closeness_centrality = None
+        self.number_highly_between_nodes = None
+        self.size_largest_component = None
         self.pos_words_count = None
         self.neg_words_count = None
         self.neutral_words_count = None
         self.pos_words_ratio = None
         self.neg_words_ratio = None
-        self.pos_words_ast = None
-        self.neg_words_ast = None
-        self.neu_words_ast = None
+        self.pos_words_assortativity = None
+        self.neg_words_assortativity = None
+        self.neu_words_assortativity = None
         self.pos_words = english_valence._positive
         self.neg_words = english_valence._negative
         self.neutral_words = english_valence._ambivalent
-        # new ones
-        self.num_nodes = None
+        self.number_of_nodes = None
         self.density = None
         self.average_path_length = None
         self.degree_centrality_importance = None # bewteenness * degree 
@@ -61,15 +60,39 @@ class Graph_Analysis:
         self.sadness = None
         self.anticipation = None
         self.surprise = None
+        self.max_clique_size = None
+        self.local_efficiency = None
+        self.global_efficiency = None
+        self.is_chordal = None
+        self.min_edge_cover = None
+        self.transitivity = None
+        self.max_independent_set = None
+        self.number_triangles = None
+        self.triangles_pos_ratio = 0
+        self.triangles_neg_ratio = 0
+        self.triangles_neutral_ratio = 0
+        self.modularity = None
+        self.core_size_ratio = None
+        self.core_size_absolute = None
         # Call setting
         self.calculate_attributes()
 
     def plot_graph(self, layout='force_layout', **kwargs):
-        """Nice plotting function. Choose between 'force_layout' and 'circular_layout' for the layout. Parameters are:
-        fmn, layout='edge_bundling', highlight=[], thickness=1, ax=None, translated=False, alpha_syntactic=0.5, alpha_hypernyms=0.5, alpha_synonyms=0.5."""
+        """Wraper function of draw_formamentis. Parameter:
+        fmn=formamentis network
+        layout='force_layout' (default) or 'circular_layout',
+        highlight=[], list of network nodes
+        thickness=1, int
+        ax=None, matplotlib axis
+        translated=False, bool
+        alpha_syntactic=0.5, float
+        alpha_hypernyms=0.5, float
+        alpha_synonyms=0.5. float
+        """
         Graph_Analysis.emos.draw_formamentis(self.fmn, layout=layout, **kwargs)
 
     def set_emotions(self):
+        """Uses the zscores for emotion from emoatlas. Sets the zscores for each emotion as an instance attribute."""
         self.anger = Graph_Analysis.emos.zscores(self.fmn)['anger']
         self.trust = Graph_Analysis.emos.zscores(self.fmn)['trust']
         self.disgust = Graph_Analysis.emos.zscores(self.fmn)['disgust']
@@ -80,9 +103,11 @@ class Graph_Analysis:
         self.sadness = Graph_Analysis.emos.zscores(self.fmn)['sadness']
 
     def set_density(self):
+        """Sets the density of the network. Represents the proportion of existing connections to the total number of possible connections. Range between 0 and 1."""
         self.density = nx.density(self.graph)
         
-    def set_spread_activation_centrality(self):
+    def set_centrality_importance(self):
+        """Sets the importance of the centrality of the nodes in the network. The centrality importance is the sum of the betweenness centrality of the nodes multiplied by the degree of the nodes. The degree centrality importance is the sum of the degree of the nodes. The pos_centrality_importance is the sum of the centrality importance of the positive nodes according to pos_words dictionary. The neg_centrality_importance is the sum of the centrality importance of the negative nodes. Division by the number of nodes is necessary to get the average centrality importance."""
         betweenness_nodes = nx.betweenness_centrality(self.graph, k=5)
         total_sum_degree = 0.0
         for key, value in betweenness_nodes.items():
@@ -93,20 +118,22 @@ class Graph_Analysis:
                 self.neg_centrality_importance += value * nx.degree(self.graph, nbunch=key)
                     
         self.degree_centrality_importance = total_sum_degree / len(self.nodes)
-        self.pos_centrality_importance /= len(self.nodes)
-        self.neg_centrality_importance = len(self.nodes)
+        self.pos_centrality_importance /= len(self.nodes) # consider omitting division
+        self.neg_centrality_importance /= len(self.nodes) # consider omitting division
     
-    def set_num_nodes(self):
-        self.num_nodes = len(self.graph.nodes)
+    def set_number_of_nodes(self):
+        """Self explanatory."""
+        self.number_of_nodes = len(self.graph.nodes)
         
     def set_average_path_length(self):
+        """Sets the average path length of the network. Represents the average number of steps along the shortest paths for all possible pairs of network nodes. Weighted by the component size to factor in its importance + normalization by divison of total number of components at the end."""
         total_sum = 0.0
         for component in nx.connected_components(self.graph):
             total_sum += nx.average_shortest_path_length(self.graph.subgraph(component)) * len(component)
-        self.average_path_length = total_sum / len(self.nodes) # or divide by len(nx.connected_components(self.graph))
+        self.average_path_length = total_sum #/ len([gen for gen in nx.connected_components(self.graph)])
 
     def set_valence_count(self):
-        """Retunrs the number of psotive and negative nodes in the network. Some nodes are in no lexicon, so they are considered neutral."""
+        """Sets the number of positive and negative nodes in the network. Some nodes are in no lexicon, thus they are considered neutral."""
         pos_counter = 0
         neg_counter = 0
         for node in self.nodes:
@@ -122,12 +149,12 @@ class Graph_Analysis:
         self.neg_words_count = neg_counter
 
     def set_valence_ratio(self):
-        """Returns the ratio of positive and negative nodes to the total number of nodes in the network."""
+        """Sets the ratio of positive and negative nodes to the total number of nodes in the network."""
         self.pos_words_ratio = self.pos_words_count/len(self.nodes)
         self.neg_words_ratio = self.neg_words_count/len(self.nodes)
 
     def set_valence_to_nodes(self):
-        """Takes a formamentis network and sets valence attributes to the nodes. """
+        """Sets valence attributes to each node. """
         for node in self.graph:
             attr = "pos" if node in self.pos_words else "neg" if node in self.neg_words else "neu"
             nx.set_node_attributes(self.graph, {node: attr}, 'valence')
@@ -142,7 +169,7 @@ class Graph_Analysis:
         assert len(intersec_nodes) == 0
 
     def set_valence_assortativity(self, sentiment):
-        """Returns the ratio of edges between equal valences."""
+        """Sets the ratio of edges between equal valences. To be changed to represent true assortativty [-1, 1] in the future."""
         self.set_valence_to_nodes()
         if sentiment == 'all':
             same_valence_edges = 0.0
@@ -164,21 +191,21 @@ class Graph_Analysis:
         return valence_assortativity
 
     def set_ratio_largest_connected_component(self) :
-      """Calculate the ratio of the largest connected component of the network to the total number of nodes. This value represents the proportion of nodes that can be reached from an arbitrary node. Range between 0 and 1."""
-      self.lcc_ratio = max(len(c) for c in nx.connected_components(
+      """Sets the ratio of the largest connected component of the network to the total number of nodes. This value represents the proportion of nodes that can be reached from an arbitrary node. Range between 0 and 1."""
+      self.ratio_largest_connected_component = max(len(c) for c in nx.connected_components(
           self.graph)) / len(self.nodes)
 
     def set_number_components(self):
-        """Number of components in the network. Represents the number of subgraphs in the network."""
-        self.num_comp = nx.number_connected_components(self.graph)
+        """Sets the number of components in the network."""
+        self.number_components = nx.number_connected_components(self.graph)
 
     def set_mean_degree(self):
-        """Calculate the average degree of the network. This value represents the average number of connections of a node."""
+        """Sets the average degree of the network."""
         degrees = [degree for node, degree in self.graph.degree()]
         self.mean_deg = round(np.mean(degrees), 2)
 
     def set_max_degree(self):
-        """Calculate the maximum degree of the network. This value represents the maximum number of connections of a node."""
+        """Sets the maximum degree of the network."""
         degrees = [degree for node, degree in self.graph.degree()]
         if len(degrees) == 0:
             self.max_deg = 0
@@ -186,7 +213,7 @@ class Graph_Analysis:
             self.max_deg = int(np.max(degrees))
 
     def set_min_degree(self):
-        """Calculate the minimum degree of the network. This value represents the minimum number of connections of a node."""
+        """Sets the minimum degree of the network."""
         degrees = [degree for node, degree in self.graph.degree()]
         if len(degrees) == 0:
             self.min_deg = 0
@@ -194,12 +221,14 @@ class Graph_Analysis:
             self.min_deg = float(np.min(degrees))
 
     def set_mean_degree_assortativity(self):
-        """The average degree assortativity of the network."""
+        """Sets the average degree assortativity of the network."""
         degrees = [degree for node, degree in self.graph.degree()]
-        self.mean_deg_ast = nx.degree_pearson_correlation_coefficient(self.graph, x=degrees, y=degrees)
+        self.mean_degree_assortativity = nx.degree_pearson_correlation_coefficient(self.graph, x=degrees, y=degrees)
 
     def set_mean_cluster_coef(self):
-        """The average local clustering coefficient of the network. Represents the tendency of nodes to cluster together."""
+        """Sets the average clustering coefficient of the network. Represents the tendency of nodes to cluster together.
+       
+       # prown to error
         Ci = 0.0
         for node in self.graph.nodes:
             Ki = list(nx.neighbors(self.graph, node))
@@ -212,51 +241,116 @@ class Graph_Analysis:
             except ZeroDivisionError:
                 # print(f'Can not divide by {len(Ki) * len(Ki)-1}. Node {node} has no neighbors: {Ki}.')
                 continue
-        self.mean_clust_coef = round(
+        self.mean_cluster_coefficient = round(
             Ci / len(self.nodes), 2) if len(self.nodes) > 0 else 0
+        # end 
+            """
+        self.mean_cluster_coefficient = nx.average_clustering(self.graph)
+        
 
     def set_algebraic_connectivity(self):
         """The algebraic connectivity of the network. Represents the connectivity of the network in terms of robustness to edge removal. Incorporates the size of the removed component."""
         try:
-            self.alg_con = nx.algebraic_connectivity(self.graph, weight=None)
+            self.algrebaric_connectivity = nx.algebraic_connectivity(self.graph, weight=None)
         except Exception as e:
             print(f'Can not make self.alg_con because of {e}.')
-            self.alg_con = 0.0
+            self.algrebaric_connectivity = 0.0
 
     def set_mean_closeness_centrality(self):
-        """Average closeness centrality of the network. Represents the average distance of a node to all other nodes."""
-        self.mean_close_cent = round(np.mean(list(nx.closeness_centrality(self.graph).values(
+        """Sets the average closeness centrality of the network. Represents the average distance of a node to all other nodes."""
+        self.mean_closeness_centrality = round(np.mean(list(nx.closeness_centrality(self.graph).values(
         ))), 2) if len(list(nx.closeness_centrality(self.graph).values())) > 0 else 0.0
 
     def set_weighted_betweenness_centrality(self):
-        """Average betweenness centrality of the network. Represents the average number of shortest paths that pass through a node."""
+        """Sets average betweenness centrality of the network. Represents the average number of shortest paths that pass through a node."""
         components = nx.connected_components(self.graph)
         between_centrality = 0.0
         for component in components:
             subgraph = self.graph.subgraph(component)
             mean = np.mean(list(nx.betweenness_centrality(subgraph).values()))
             between_centrality += mean * len(subgraph)
-        self.weight_close_cent = round(between_centrality, 2)
+        self.weighted_closeness_centrality = round(between_centrality, 2)
 
     def set_max_closeness_centrality(self):
-        """Return the maximum value from a list of numbers."""
-        self.max_close_cent = round(np.max(list(nx.closeness_centrality(self.graph).values(
+        """Sets the maximum value among the closeness centrality and thus the most central node."""
+        self.max_closeness_centrality = round(np.max(list(nx.closeness_centrality(self.graph).values(
         ))), 2) if len(list(nx.closeness_centrality(self.graph).values())) > 0 else 0.0
 
-    def num_between_nodes(self):
-        """Returns the sum of highly between nodes. Represents the sum of nodes with a betweenness centrality of 0.75 or higher. 0 if not present."""
+    def set_highly_between_nodes(self):
+        """Returns the sum of highly between nodes. Represents the sum of nodes with a betweenness centrality of 0.5 or higher. 0 if not present."""
         components = nx.connected_components(self.graph)
         high_betweenness = 0.0
         for component in components:
             subgraph = self.graph.subgraph(component)
             filtered_values = [value for value in nx.betweenness_centrality(
-                subgraph).values() if value >= 0.75]
+                subgraph).values() if value >= 0.5]
             high_betweenness += np.sum(filtered_values)
-        self.num_bet_nodes = high_betweenness
+        self.number_highly_between_nodes = high_betweenness
 
     def set_size_largcomp(self):
         """Size of the largest connected component of the network."""
-        self.slc = max(len(c) for c in nx.connected_components(self.graph))
+        self.size_largest_component = max(len(c) for c in nx.connected_components(self.graph))
+
+    ####################################################################################
+    # New measures to be added
+    
+    def set_nodes_to_age_ratio(self):
+        #self.nodes_to_age_ratio = len(self.nodes) / self.age
+        pass
+    
+    def set_maximum_clique_size(self):
+        G = nx.find_cliques(self.graph)
+        self.max_clique_size = max([len(gn) for gn in G])
+
+    def set_local_efficiency(self):
+        self.local_efficiency = nx.local_efficiency(self.graph)
+        
+    def set_global_efficiency(self):
+        self.global_efficiency = nx.global_efficiency(self.graph)
+        
+    def set_is_chordal(self):
+        self.is_chordal = nx.is_chordal(self.graph)
+        
+    def set_min_edge_cover(self):
+        self.min_edge_cover = len(nx.min_edge_cover(self.graph))
+        
+    def set_transitivity(self):
+        self.transitivity = nx.transitivity(self.graph)
+        
+    def set_maximal_independent_set(self):
+        self.max_independent_set = len(nx.maximal_independent_set(self.graph))
+        
+    def set_total_number_of_triangles(self):
+        self.number_triangles = sum(nx.triangles(self.graph).values())
+        
+    def set_triangle_valence_ratio(self):
+        for key, value in nx.triangles(self.graph).items():
+            if key in self.pos_words:
+                self.triangles_pos_ratio += value
+            elif key in self.neg_words:
+                self.triangles_neg_ratio += value
+            elif key in self.neutral_words:
+                self.triangles_neutral_ratio += value
+            else:
+                self.triangles_neutral_ratio += value
+        
+        self.triangles_pos_ratio /= self.number_triangles
+        self.triangles_neg_ratio /= self.number_triangles
+        self.triangles_neutral_ratio /= self.number_triangles
+        
+                
+    def set_modularity(self):
+        communities = nx.community.louvain_communities(self.graph)
+        self.modularity = nx.community.modularity(self.graph, communities)
+        
+    def set_core_size(self):
+        self.core_size_absolute = len(nx.k_core(self.graph, self.distance))
+        self.core_size_ratio = self.core_size_absolute / len(self.nodes)
+        
+    def is_kl_connected(self):
+        pass
+    
+    ####################################################################################
 
     def calculate_attributes(self):
       self.set_ratio_largest_connected_component()
@@ -270,25 +364,37 @@ class Graph_Analysis:
       self.set_mean_closeness_centrality()
       self.set_weighted_betweenness_centrality()
       self.set_max_closeness_centrality()
-      self.num_between_nodes()
+      self.set_highly_between_nodes()
       self.set_size_largcomp()
       self.set_valence_count()
       self.set_valence_ratio()
-      self.pos_words_ast = self.set_valence_assortativity(sentiment='pos')
-      self.neg_words_ast = self.set_valence_assortativity(sentiment='neg')
-      self.neu_words_ast = self.set_valence_assortativity(sentiment='neu')
+      self.pos_words_assortativity = self.set_valence_assortativity(sentiment='pos')
+      self.neg_words_assortativity = self.set_valence_assortativity(sentiment='neg')
+      self.neu_words_assortativity = self.set_valence_assortativity(
+          sentiment='neu')
       self.set_density()
-      self.set_spread_activation_centrality()
-      self.set_num_nodes()
+      self.set_centrality_importance()
+      self.set_number_of_nodes()
       self.set_average_path_length()
       self.set_emotions()
+      # bring in 
+      self.set_maximum_clique_size()
+      self.set_local_efficiency()
+      self.set_global_efficiency()
+      self.set_is_chordal()
+      self.set_min_edge_cover()
+      self.set_transitivity()
+      self.set_maximal_independent_set()
+      self.set_total_number_of_triangles()
+      self.set_triangle_valence_ratio()
+      self.set_modularity()
+      self.set_core_size()
 
     ####################################################################################
 
 
 class Emo_Lexicon:
-    """Helper class to create a valence dictionary from a text file. Since there is now valence in Graph_Analysis it is not really needed any longer. Delete it when I am certain of that"""
-    
+    """Helper class to create a valence dictionary from a text file. Used to process EmoLex or the NRC Emotion Lexicon."""
     def __init__(self, path, num_val=True):
         """Here comes the documentation"""
         
